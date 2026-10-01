@@ -91,13 +91,42 @@ h1{font-size:36px}
 .rp{flex:none;border-left:none;padding-left:0;border-top:2px solid #34312b;padding-top:16px;overflow:visible}
 .p{padding:30px 6px;font-size:24px}
 }
+
+#cfdlg{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:6}
+#cfdlg.on{display:flex}
+#cfdlg .box{background:#2c2a25;border:3px solid #fff;border-radius:20px;padding:30px;width:min(480px,90vw);display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center}
+#cfdlg h2{margin:0;font-size:26px}
+#cfdlg p{margin:0;font-size:19px;color:#fff}
+#cfdlg .pbtns{display:flex;gap:16px;width:100%}
+#cfyes,#cfno{flex:1;border:3px solid #fff;border-radius:14px;padding:18px 10px;font-size:22px;font-weight:800;font-family:inherit;cursor:pointer}
+#cfyes{background:#1f8a3c;color:#fff}
+#cfno{background:#b3261e;color:#fff}
+#cfyes:active,#cfno:active{filter:brightness(.85);transform:scale(.96)}
+#cfclose{position:absolute;top:14px;right:16px;background:none;border:none;color:#fff;font-size:26px;cursor:pointer;line-height:1}
+#cfdlg .box{position:relative}
+.xdel{margin-left:12px;background:#b3261e;color:#fff;border:2px solid #fff;border-radius:10px;width:48px;height:48px;font-size:22px;font-weight:800;cursor:pointer;flex-shrink:0}
+#ocharts{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;min-height:0;overflow:auto}
+.card{background:#2c2a25;border:3px solid #fff;border-radius:18px;padding:18px;display:flex;flex-direction:column;align-items:center;gap:14px;min-width:0}
+.card h2{margin:0;font-size:22px;align-self:flex-start}
+#opie{width:min(100%,260px);aspect-ratio:1}
+#oleg,#oleg2{display:grid;grid-template-columns:1fr 1fr;gap:8px 18px;font-size:17px;font-weight:600}
+#obars,#ostack{width:100%;display:flex;flex-direction:column;gap:14px}
+.brow{display:grid;grid-template-columns:100px 1fr 36px;align-items:center;gap:10px;font-size:17px;font-weight:700}
+.bt{height:30px;background:#1b1a17;border:2px solid #fff;border-radius:8px;overflow:hidden}
+.bf{height:100%}
+.bn{text-align:right}
+.sl{font-size:16px;font-weight:700;margin-bottom:6px}
+.st{display:flex;height:40px;border:3px solid #fff;border-radius:10px;overflow:hidden}
+.seg{display:flex;align-items:center;justify-content:center;min-width:0;color:#fff;font-weight:800;text-shadow:0 1px 3px #000,0 0 6px #000;border-right:2px solid #fff}
+.seg:last-child{border-right:none}
+@media (orientation:portrait),(max-width:700px){#ocharts{grid-template-columns:1fr;flex:none;overflow:visible}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 
 <div class="view on" id="home">
-  <div class="bar"><h1>Haushalt</h1><div class="clock"></div></div>
+  <div class="bar"><div style="display:flex;align-items:center;gap:22px;flex-wrap:wrap"><h1>Haushalt</h1><button class="back" id="ovbtn">📊 Overview</button></div><div class="clock"></div></div>
   <div id="tasks"></div>
 </div>
 
@@ -124,6 +153,20 @@ h1{font-size:36px}
 <div id="dlg"><div class="box"><h2>Neue Aufgabe</h2><input id="nn" maxlength="30" placeholder="z. B. Wäsche aufhängen"><div class="btns"><button class="back" id="nc">Abbrechen</button><button class="ok" id="ny">+ Hinzufügen</button></div></div></div>
 <div id="cdlg"><div class="box"><h2 id="ct"></h2><div class="btns"><button class="back" id="cn">Abbrechen</button><button class="ok" id="cy" style="background:#e5484d">Löschen</button></div></div></div>
 <div id="adlg"><div class="box"><div class="hd"><h2 id="atitle">Alle Einträge</h2><button class="back" id="ax">Schließen</button></div><ul id="alist"></ul></div></div>
+<div class="view" id="overview">
+  <div class="bar">
+    <div class="left"><button class="back" id="oback">‹ Zurück</button></div>
+    <div style="font-size:40px;font-weight:800">Overview</div>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap"><select id="omonth"></select><div class="clock"></div></div>
+  </div>
+  <div id="oempty" style="height:22px"></div>
+  <div id="ocharts">
+    <div class="card"><h2>Kreis · Anteil</h2><svg id="opie" viewBox="0 0 200 200"></svg><div id="oleg"></div></div>
+    <div class="card"><h2>Balken · Anzahl</h2><div id="obars"></div></div>
+    <div class="card"><h2>Pro Aufgabe</h2><div id="ostack"></div><div id="oleg2"></div></div>
+  </div>
+</div>
+<div id="cfdlg"><div class="box"><button id="cfclose">&times;</button><h2 id="cftitle"></h2><p id="cfsub"></p><div class="pbtns"><button id="cfno">Nein</button><button id="cfyes">Ja, buchen</button></div></div></div>
 <div id="toast"></div>
 
 <script>
@@ -177,7 +220,7 @@ function renderHome(){
   a.onclick=()=>{$("nn").value="";$("dlg").classList.add("on");$("nn").focus()};
   $("tasks").appendChild(a);
 }
-function go(v){$("home").classList.toggle("on",v==="home");$("detail").classList.toggle("on",v==="detail")}
+function go(v){["home","detail","overview"].forEach(id=>$(id).classList.toggle("on",id===v))}
 $("back").onclick=()=>{cancelAnimationFrame(raf);renderHome();go("home")};
 
 /* Detailseite */
@@ -203,13 +246,18 @@ function openTask(id){
   $("del").style.display=custom.some(x=>x.id===id)?"inline-block":"none";
   fillMonths();go("detail");renderDetail(true);
 }
+let pending=null;
+function ask(title,sub,yes,fn){pending=fn;$("cftitle").textContent=title;$("cfsub").textContent=sub;$("cfyes").textContent=yes;$("cfdlg").classList.add("on")}
 function add(pid){
-  entries.push({t:cur,p:pid,ts:q15(new Date()).toISOString()});
-  save();fillMonths();
-  $("month").value=mkey(new Date());
-  toast(PEOPLE.find(p=>p.id===pid).n+" eingetragen");
-  renderDetail(true);
+  const p=PEOPLE.find(x=>x.id===pid),t=tasks().find(x=>x.id===cur);
+  ask("Eintragen?",p.n+" \u2014 "+t.n,"Ja, buchen",()=>{
+    entries.push({t:cur,p:pid,ts:q15(new Date()).toISOString()});
+    save();fillMonths();$("month").value=mkey(new Date());
+    toast(p.n+" eingetragen");renderDetail(true);
+  });
 }
+function confirmYes(){const f=pending;pending=null;$("cfdlg").classList.remove("on");if(f)f()}
+function cancelAdd(){pending=null;$("cfdlg").classList.remove("on")}
 $("undo").onclick=()=>{
   let i=-1;for(let k=entries.length-1;k>=0;k--){if(entries[k].t===cur){i=k;break}}
   if(i<0){toast("Nichts zum Rückgängigmachen");return}
@@ -246,8 +294,8 @@ function slice(a0,a1,col){
   el.setAttribute("fill",col);el.setAttribute("stroke","#fff");el.setAttribute("stroke-width","3");el.setAttribute("stroke-linejoin","round");
   return el;
 }
-function paint(data,total,limit){
-  const svg=$("pie");svg.innerHTML="";
+function paint(data,total,limit,svg){
+  svg=svg||$("pie");svg.innerHTML="";
   const bg=document.createElementNS(NS,"circle");
   bg.setAttribute("cx",100);bg.setAttribute("cy",100);bg.setAttribute("r",92);bg.setAttribute("fill","#2c2a25");bg.setAttribute("stroke","#fff");bg.setAttribute("stroke-width","5");
   svg.appendChild(bg);
@@ -264,13 +312,13 @@ function paint(data,total,limit){
   ring.setAttribute("fill","none");ring.setAttribute("stroke","#fff");ring.setAttribute("stroke-width","5");
   svg.appendChild(ring);
 }
-function drawPie(data,total,anim){
+function drawPie(data,total,anim,svg){
   cancelAnimationFrame(raf);
-  if(!anim||!total||matchMedia("(prefers-reduced-motion:reduce)").matches){paint(data,total,360);return}
+  if(!anim||!total||matchMedia("(prefers-reduced-motion:reduce)").matches){paint(data,total,360,svg);return}
   const t0=performance.now(),dur=900;
   (function step(now){
     const p=Math.min(1,(now-t0)/dur),ease=1-Math.pow(1-p,3);
-    paint(data,total,ease*360);
+    paint(data,total,ease*360,svg);
     if(p<1)raf=requestAnimationFrame(step);
   })(t0);
 }
@@ -290,13 +338,50 @@ $("del").onclick=()=>{
 };
 $("cn").onclick=()=>$("cdlg").classList.remove("on");
 $("cy").onclick=()=>{custom=custom.filter(x=>x.id!==cur);entries=entries.filter(e=>e.t!==cur);saveTasks();save();$("cdlg").classList.remove("on");renderHome();go("home");toast("Aufgabe gelöscht")};
-$("allbtn").onclick=()=>{
-  const all=entries.filter(e=>e.t===cur).reverse();
+function fillAll(){
+  const all=entries.map((e,i)=>({e,i})).filter(x=>x.e.t===cur).reverse();
   $("atitle").textContent="Alle Einträge ("+all.length+")";
-  $("alist").innerHTML=all.length?all.map(e=>{const p=PEOPLE.find(x=>x.id===e.p);return '<li><span class="dot" style="background:'+p.c+'"></span>'+p.n+'<span class="t">'+fmt(e.ts)+'</span></li>'}).join(""):'<li style="color:#fff">Noch keine Einträge.</li>';
-  $("adlg").classList.add("on");
-};
+  $("alist").innerHTML="";
+  if(!all.length){$("alist").innerHTML='<li>Noch keine Einträge.</li>';return}
+  all.forEach(({e,i})=>{
+    const p=PEOPLE.find(x=>x.id===e.p);
+    const li=document.createElement("li");
+    li.innerHTML='<span class="dot" style="background:'+p.c+'"></span>'+p.n+'<span class="t">'+fmt(e.ts)+'</span>';
+    const x=document.createElement("button");x.className="xdel";x.textContent="\u2715";
+    x.onclick=()=>ask("Eintrag löschen?",p.n+" \u2014 "+fmt(e.ts),"Ja, löschen",()=>{entries.splice(i,1);save();toast("Eintrag gelöscht");fillAll();renderDetail(false)});
+    li.appendChild(x);$("alist").appendChild(li);
+  });
+}
+$("allbtn").onclick=()=>{fillAll();$("adlg").classList.add("on")};
 $("ax").onclick=()=>$("adlg").classList.remove("on");
+$("cfyes").onclick=confirmYes;
+$("cfno").onclick=cancelAdd;
+$("cfclose").onclick=cancelAdd;
+function renderOverview(anim){
+  const mk=$("omonth").value;
+  const list=entries.filter(e=>mk==="all"||mkey(e.ts)===mk),total=list.length;
+  const data=PEOPLE.map(p=>({p,n:list.filter(e=>e.p===p.id).length}));
+  drawPie(data,total,anim,$("opie"));
+  $("oleg").innerHTML=data.map(d=>'<div class="li"><span class="dot" style="background:'+d.p.c+'"></span>'+d.p.n+': '+(total?Math.round(d.n/total*100):0)+'%</div>').join("");
+  $("oleg2").innerHTML=data.map(d=>'<div class="li"><span class="dot" style="background:'+d.p.c+'"></span>'+d.p.n+'</div>').join("");
+  const max=Math.max(1,...data.map(d=>d.n));
+  $("obars").innerHTML=data.map(d=>'<div class="brow"><div>'+d.p.n+'</div><div class="bt"><div class="bf" style="width:'+(d.n/max*100)+'%;background:'+d.p.c+'"></div></div><div class="bn">'+d.n+'</div></div>').join("");
+  $("ostack").innerHTML=tasks().map(t=>{
+    const es=list.filter(e=>e.t===t.id);
+    const segs=PEOPLE.map(p=>{const c=es.filter(e=>e.p===p.id).length;return c?'<div class="seg" style="flex:'+c+';background:'+p.c+'">'+c+'</div>':''}).join("");
+    return '<div><div class="sl">'+t.e+' '+t.n+'</div><div class="st">'+(segs||'<div class="seg" style="flex:1;background:#4a463d"></div>')+'</div></div>';
+  }).join("");
+  $("oempty").textContent=total?"":"Noch keine Einträge in diesem Zeitraum.";
+}
+function fillOMonths(){
+  const s=$("omonth"),old=s.value,ks=new Set(entries.map(e=>mkey(e.ts)));ks.add(mkey(new Date()));
+  s.innerHTML='<option value="all">Alle Monate</option>';
+  [...ks].sort().reverse().forEach(k=>{const o=document.createElement("option");o.value=k;o.textContent=mlabel(k);s.appendChild(o)});
+  s.value=(old==="all"||ks.has(old))?old:mkey(new Date());
+}
+$("ovbtn").onclick=()=>{fillOMonths();go("overview");renderOverview(true)};
+$("oback").onclick=()=>{cancelAnimationFrame(raf);renderHome();go("home")};
+$("omonth").onchange=()=>renderOverview(true);
 buildButtons();renderHome();
 </script>
 </body>
