@@ -120,6 +120,13 @@ h1{font-size:36px}
 .seg{display:flex;align-items:center;justify-content:center;min-width:0;color:#fff;font-weight:800;text-shadow:0 1px 3px #000,0 0 6px #000;border-right:2px solid #fff}
 .seg:last-child{border-right:none}
 @media (orientation:portrait),(max-width:700px){#ocharts{grid-template-columns:1fr;flex:none;overflow:visible}}
+#pindlg{position:fixed;inset:0;background:#1b1a17;display:none;align-items:center;justify-content:center;z-index:9}
+#pindlg.on{display:flex}
+#pindlg .box{width:min(440px,90vw);display:flex;flex-direction:column;gap:18px;text-align:center}
+#pindlg h2{margin:0;font-size:34px}
+#pindlg p{margin:0;font-size:19px}
+#pindlg input{font-size:30px;padding:16px;text-align:center;letter-spacing:8px;border-radius:12px;border:3px solid #fff;background:#2c2a25;color:#fff;font-family:inherit}
+#conn{position:fixed;left:12px;bottom:10px;background:#b3261e;border:2px solid #fff;border-radius:10px;padding:8px 14px;font-size:15px;font-weight:700;z-index:7;display:none}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -167,6 +174,8 @@ h1{font-size:36px}
   </div>
 </div>
 <div id="cfdlg"><div class="box"><button id="cfclose">&times;</button><h2 id="cftitle"></h2><p id="cfsub"></p><div class="pbtns"><button id="cfno">Nein</button><button id="cfyes">Ja, buchen</button></div></div></div>
+<div id="pindlg"><div class="box"><h2>Familien-PIN</h2><p id="pinmsg"></p><input id="pinin" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="PIN"><button class="ok" id="pinok">Weiter</button></div></div>
+<div id="conn">⚠ Keine Verbindung</div>
 <div id="toast"></div>
 
 <script>
@@ -185,10 +194,9 @@ const PEOPLE=[
  {id:"simon",n:"Simon",c:"#35c463",d:true}
 ];
 const KEY="haushalt_v2",TKEY="haushalt_tasks_v2";
-let custom=[];try{custom=JSON.parse(localStorage.getItem(TKEY))||[]}catch(e){}
+let custom=[];
 const tasks=()=>BASE.concat(custom);
 let entries=[],cur=null,raf=0;
-try{entries=JSON.parse(localStorage.getItem(KEY))||[]}catch(e){entries=[]}
 const $=id=>document.getElementById(id);
 const pad=n=>String(n).padStart(2,"0");
 const q15=d=>{d=new Date(d);d.setMinutes(Math.floor(d.getMinutes()/15)*15,0,0);return d};
@@ -197,7 +205,7 @@ const MN=["Januar","Februar","März","April","Mai","Juni","Juli","August","Septe
 const MA=["Jan.","Feb.","Mar.","Apr.","May","Jun.","Jul.","Aug.","Sep.","Oct.","Nov.","Dec."];
 const mlabel=k=>{const[y,m]=k.split("-");return MN[+m-1]+" "+y};
 const fmt=iso=>{const d=new Date(iso);return d.getDate()+". "+MA[d.getMonth()]+" "+d.getFullYear()+" · "+pad(d.getHours())+":"+pad(d.getMinutes())};
-function save(){try{localStorage.setItem(KEY,JSON.stringify(entries))}catch(e){toast("Speichern nicht möglich")}}
+function save(){}
 function toast(t){const el=$("toast");el.textContent=t;el.classList.add("on");clearTimeout(toast.t);toast.t=setTimeout(()=>el.classList.remove("on"),1800)}
 
 /* Uhr */
@@ -251,9 +259,7 @@ function ask(title,sub,yes,fn){pending=fn;$("cftitle").textContent=title;$("cfsu
 function add(pid){
   const p=PEOPLE.find(x=>x.id===pid),t=tasks().find(x=>x.id===cur);
   ask("Eintragen?",p.n+" \u2014 "+t.n,"Ja, buchen",()=>{
-    entries.push({t:cur,p:pid,ts:q15(new Date()).toISOString()});
-    save();fillMonths();$("month").value=mkey(new Date());
-    toast(p.n+" eingetragen");renderDetail(true);
+    rpc("add_entry",{p_task:cur,p_person:pid,p_ts:q15(new Date()).toISOString()}).then(()=>{toast(p.n+" eingetragen");return refresh(true)}).then(()=>{fillMonths();$("month").value=mkey(new Date());renderDetail(true)}).catch(()=>{});
   });
 }
 function confirmYes(){const f=pending;pending=null;$("cfdlg").classList.remove("on");if(f)f()}
@@ -262,9 +268,7 @@ $("undo").onclick=()=>{
   let i=-1;for(let k=entries.length-1;k>=0;k--){if(entries[k].t===cur){i=k;break}}
   if(i<0){toast("Nichts zum Rückgängigmachen");return}
   const p=PEOPLE.find(x=>x.id===entries[i].p);
-  entries.splice(i,1);save();
-  toast("Eintrag von "+p.n+" entfernt");
-  renderDetail(true);
+  rpc("delete_entry",{p_id:entries[i].id}).then(()=>{toast("Eintrag von "+p.n+" entfernt");return refresh(true)}).then(()=>renderDetail(true)).catch(()=>{});
 };
 $("month").onchange=()=>renderDetail(true);
 
@@ -325,7 +329,7 @@ function drawPie(data,total,anim,svg){
 
 function saveTasks(){try{localStorage.setItem(TKEY,JSON.stringify(custom))}catch(e){toast("Speichern nicht möglich")}}
 $("nc").onclick=()=>$("dlg").classList.remove("on");
-function addTask(){const n=$("nn").value.trim();if(!n)return;custom.push({id:"c"+Date.now(),n:n,e:"📝"});saveTasks();$("dlg").classList.remove("on");renderHome();toast("„"+n+"“ hinzugefügt")}
+function addTask(){const n=$("nn").value.trim();if(!n)return;$("dlg").classList.remove("on");rpc("add_task",{p_id:"c"+Date.now(),p_name:n,p_emoji:"📝"}).then(()=>{toast("„"+n+"“ hinzugefügt");return refresh(true)}).catch(()=>{})}
 $("ny").onclick=addTask;
 $("nn").onkeydown=e=>{if(e.key==="Enter")addTask()};
 let delArm=0;
@@ -334,7 +338,7 @@ $("del").onclick=()=>{
   const t=custom.find(x=>x.id===cur);if(!t)return;
   if(!delArm){$("del").textContent="Wirklich löschen? Nochmal tippen";$("del").style.background="#b3261e";delArm=setTimeout(resetDel,4000);return}
   resetDel();
-  custom=custom.filter(x=>x.id!==cur);entries=entries.filter(e=>e.t!==cur);saveTasks();save();renderHome();go("home");toast("„"+t.n+"“ gelöscht");
+  rpc("delete_task",{p_id:cur}).then(()=>refresh(true)).then(()=>{go("home");toast("„"+t.n+"“ gelöscht")}).catch(()=>{});
 };
 $("cn").onclick=()=>$("cdlg").classList.remove("on");
 $("cy").onclick=()=>{custom=custom.filter(x=>x.id!==cur);entries=entries.filter(e=>e.t!==cur);saveTasks();save();$("cdlg").classList.remove("on");renderHome();go("home");toast("Aufgabe gelöscht")};
@@ -348,7 +352,7 @@ function fillAll(){
     const li=document.createElement("li");
     li.innerHTML='<span class="dot" style="background:'+p.c+'"></span>'+p.n+'<span class="t">'+fmt(e.ts)+'</span>';
     const x=document.createElement("button");x.className="xdel";x.textContent="\u2715";
-    x.onclick=()=>ask("Eintrag löschen?",p.n+" \u2014 "+fmt(e.ts),"Ja, löschen",()=>{entries.splice(i,1);save();toast("Eintrag gelöscht");fillAll();renderDetail(false)});
+    x.onclick=()=>ask("Eintrag löschen?",p.n+" \u2014 "+fmt(e.ts),"Ja, löschen",()=>{rpc("delete_entry",{p_id:e.id}).then(()=>{toast("Eintrag gelöscht");return refresh(true)}).then(()=>{fillAll();renderDetail(false)}).catch(()=>{})});
     li.appendChild(x);$("alist").appendChild(li);
   });
 }
@@ -382,7 +386,61 @@ function fillOMonths(){
 $("ovbtn").onclick=()=>{fillOMonths();go("overview");renderOverview(true)};
 $("oback").onclick=()=>{cancelAnimationFrame(raf);renderHome();go("home")};
 $("omonth").onchange=()=>renderOverview(true);
-buildButtons();renderHome();
+const SB="https://zkgeecizzzwzfpvcwejm.supabase.co",SBK="sb_publishable_P-ajm_Pp8bn6mkzGDcFlcA_zhFcBO67";
+let PIN="",lastSig="";
+try{PIN=localStorage.getItem("haushalt_pin")||""}catch(e){}
+async function api(path,opt){
+  const r=await fetch(SB+"/rest/v1/"+path,Object.assign({headers:{apikey:SBK,"Content-Type":"application/json"}},opt));
+  const t=await r.text();let j=null;try{j=t?JSON.parse(t):null}catch(e){}
+  if(!r.ok)throw new Error((j&&j.message)||String(r.status));
+  return j;
+}
+async function rpc(fn,args){
+  args.pin=PIN;
+  try{return await api("rpc/"+fn,{method:"POST",body:JSON.stringify(args)})}
+  catch(e){
+    if(/PIN/i.test(e.message)){PIN="";try{localStorage.removeItem("haushalt_pin")}catch(x){}askPin("PIN stimmt nicht mehr, bitte neu eingeben")}
+    else toast("Keine Verbindung, nicht gespeichert");
+    throw e;
+  }
+}
+function online(ok){$("conn").style.display=ok?"none":"block"}
+async function refresh(force){
+  if(!PIN)return;
+  try{
+    const[e,c]=await Promise.all([api("entries?select=id,task_id,person_id,ts&order=id.asc&limit=10000"),api("custom_tasks?select=id,name,emoji&order=id.asc")]);
+    online(true);
+    const sig=JSON.stringify([e.map(x=>x.id),c.map(x=>x.id)]);
+    entries=e.map(x=>({id:x.id,t:x.task_id,p:x.person_id,ts:x.ts}));
+    custom=c.map(x=>({id:x.id,n:x.name,e:x.emoji||"📝"}));
+    if(force===true||sig!==lastSig){lastSig=sig;rerender()}
+  }catch(err){online(false)}
+}
+function rerender(){
+  if($("detail").classList.contains("on")){
+    if(!tasks().find(x=>x.id===cur)){go("home");renderHome();return}
+    fillMonths();renderDetail(false);
+    if($("adlg").classList.contains("on"))fillAll();
+  }else if($("overview").classList.contains("on")){fillOMonths();renderOverview(false)}
+  else renderHome();
+}
+function askPin(msg){$("pinmsg").textContent=msg||"Bitte den Familien-PIN eingeben";$("pinin").value="";$("pindlg").classList.add("on");setTimeout(()=>$("pinin").focus(),50)}
+async function tryPin(){
+  const v=$("pinin").value.trim();if(!v)return;
+  try{
+    await api("rpc/check_pin",{method:"POST",body:JSON.stringify({pin:v})});
+    PIN=v;try{localStorage.setItem("haushalt_pin",v)}catch(e){}
+    $("pindlg").classList.remove("on");refresh(true);
+  }catch(e){$("pinmsg").textContent=/PIN/i.test(e.message)?"Falscher PIN, bitte nochmal":"Keine Verbindung, bitte nochmal";$("pinin").value=""}
+}
+$("pinok").onclick=tryPin;
+$("pinin").onkeydown=e=>{if(e.key==="Enter")tryPin()};
+function boot(){
+  if(PIN)refresh(true);else askPin();
+  setInterval(()=>refresh(),5000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden)refresh()});
+}
+buildButtons();renderHome();boot();
 </script>
 </body>
 </html>
